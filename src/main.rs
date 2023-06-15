@@ -61,9 +61,11 @@ fn add_sudo(workspace: &Path, runtime_name: &str) {
 impl pallet_sudo::Config for Runtime {
 \ttype RuntimeEvent = RuntimeEvent;
 \ttype RuntimeCall = RuntimeCall;
+\ttype WeightInfo = ();
 }
 ",
         );
+        // \ttype WeightInfo = (); with the new version
         write(lib_rs, lib_contents);
     }
 
