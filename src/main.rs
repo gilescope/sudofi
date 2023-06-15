@@ -2,6 +2,7 @@ use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 
+/// Tool to add sudo-pallet to relay chains in the polkadot repo
 fn main() {
     if std::env::args().count() != 1 {
         println!("Usage: No args, just run in a polkadot repo dir to add sudo pallet");
@@ -20,7 +21,7 @@ fn add_sudo(workspace: &Path, runtime_name: &str) {
     let cargo_toml = runtime_dir.join("Cargo.toml");
 
     let lib_rs = runtime_dir.join("src").join("lib.rs");
-    let cargo_contents = read_to_string(&cargo_toml);
+    let mut cargo_contents = read_to_string(&cargo_toml);
     let branch = sniff_branch(&cargo_contents).expect("can't sniff branch");
     let sudo_crate = format!(
         r#"pallet-sudo = {{ git = "https://github.com/paritytech/substrate", default-features = false, branch = "{}" }}"#,
@@ -29,11 +30,19 @@ fn add_sudo(workspace: &Path, runtime_name: &str) {
     let mut lib_contents = read_to_string(&lib_rs);
 
     if !cargo_contents.contains(&sudo_crate) {
-        let new_contents = cargo_contents.replace(
+        cargo_contents = cargo_contents.replace(
             "[dev-dependencies]",
             &(sudo_crate + "\n\n[dev-dependencies]"),
         );
-        write(cargo_toml, new_contents);
+        write(&cargo_toml, &cargo_contents);
+    }
+
+    if !cargo_contents.contains("pallet-sudo/std") {
+        cargo_contents = cargo_contents.replace(
+            "\"pallet-staking/std\",",
+            "\"pallet-staking/std\",\n\t\"pallet-sudo/std\",",
+        );
+        write(&cargo_toml, &cargo_contents);
     }
 
     if !lib_contents.contains("Sudo: pallet_sudo") {
@@ -93,11 +102,12 @@ impl pallet_sudo::Config for Runtime {
 }
 
 pub fn read_to_string<P: AsRef<Path>>(path: P) -> String {
-    fs::read_to_string(&path).expect(&format!("can't read {}", path.as_ref().display()))
+    fs::read_to_string(&path).unwrap_or_else(|_| panic!("can't read {}", path.as_ref().display()))
 }
 
 fn write<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, contents: C) {
-    fs::write(&path, contents).expect(&format!("can't write to {}", path.as_ref().display()));
+    fs::write(&path, contents)
+        .unwrap_or_else(|_| panic!("can't write to {}", path.as_ref().display()));
 }
 
 fn sniff_branch(cargo_toml: &str) -> Option<&str> {
